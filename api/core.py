@@ -10,6 +10,22 @@ from typing import Iterable
 from xai_sdk import Client
 from xai_sdk.chat import image, system, user
 
+# 16MB limit for gRPC messages (default is 4MB, which fails for large base64 images)
+GRPC_MAX_MESSAGE_LENGTH = 16 * 1024 * 1024
+
+
+def create_client(api_key: str, api_host: str = "api.x.ai") -> Client:
+    """Create an xAI SDK Client with increased gRPC message size limits."""
+    return Client(
+        api_key=api_key,
+        api_host=api_host,
+        channel_options=[
+            ("grpc.max_send_message_length", GRPC_MAX_MESSAGE_LENGTH),
+            ("grpc.max_receive_message_length", GRPC_MAX_MESSAGE_LENGTH),
+        ],
+    )
+
+
 DEFAULT_SYSTEM_INSTRUCTIONS = (
     "IMPORTANT: DO NOT INCLUDE BACKGROUND AUDIO OR GENERATE VOICE OVERS DESCRIBING THE SCENE. "
     "Maintain accurate human anatomy and realistic movements throughout - no extra limbs, distortions, "
@@ -22,7 +38,15 @@ SUPPORTED_RESOLUTIONS = ["480p", "720p"]
 
 
 class ModerationError(RuntimeError):
-    """Raised when a request fails moderation checks."""
+    """Raised when a request fails moderation checks.
+    
+    Attributes:
+        pre_generation: True if caught before video was generated ($0.05 fee only),
+                       False if caught after generation (video cost + $0.05 fee).
+    """
+    def __init__(self, message: str, pre_generation: bool = True):
+        super().__init__(message)
+        self.pre_generation = pre_generation
 
 
 def load_image_as_data_url(image_path: Path) -> str:
@@ -151,7 +175,12 @@ def preflight_check(
     url = response._video.url
     if not url:
         if not response.respect_moderation:
-            raise ModerationError("Video did not respect moderation rules; URL is not available.")
+            # Check if video was generated (post-gen failure) or caught early (pre-gen)
+            has_duration = getattr(response, 'duration', None) and response.duration > 0
+            raise ModerationError(
+                "Video did not respect moderation rules; URL is not available.",
+                pre_generation=not has_duration,
+            )
         raise RuntimeError("Video URL missing from response.")
 
     download_video(url, output_path)
@@ -178,7 +207,12 @@ def generate_video(
     url = response._video.url
     if not url:
         if not response.respect_moderation:
-            raise ModerationError("Video did not respect moderation rules; URL is not available.")
+            # Check if video was generated (post-gen failure) or caught early (pre-gen)
+            has_duration = getattr(response, 'duration', None) and response.duration > 0
+            raise ModerationError(
+                "Video did not respect moderation rules; URL is not available.",
+                pre_generation=not has_duration,
+            )
         raise RuntimeError("Video URL missing from response.")
 
     download_video(url, output_path)

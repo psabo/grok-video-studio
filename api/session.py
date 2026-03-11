@@ -9,12 +9,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from xai_sdk import Client
-
 from .core import (
     DEFAULT_SYSTEM_INSTRUCTIONS,
     ModerationError,
     SUPPORTED_RESOLUTIONS,
+    create_client,
     extract_last_frame,
     finalize_session,
     generate_video,
@@ -530,7 +529,7 @@ class SessionManager:
         thread.start()
 
     def _run_single(self, session: SessionState, request: SingleRequest) -> None:
-        client = Client(api_key=request.api_key, api_host=request.api_host)
+        client = create_client(api_key=request.api_key, api_host=request.api_host)
         if not session.costs.get("items"):
             session.init_costs(self.pricing.currency, self.pricing.violation_fee)
         
@@ -598,9 +597,11 @@ class SessionManager:
                             prompt,
                             preflight_path,
                         )
-                    except ModerationError:
+                    except ModerationError as exc:
+                        # Pre-gen: $0.05 only. Post-gen: video cost + $0.05
+                        duration_charged = 0 if exc.pre_generation else 1
                         self._record_cost(
-                            session, "preflight", 1, "480p", "failed",
+                            session, "preflight", duration_charged, "480p", "failed",
                             self.pricing.violation_fee,
                         )
                         raise
@@ -629,9 +630,11 @@ class SessionManager:
                         request.duration,
                         request.resolution,
                     )
-                except ModerationError:
+                except ModerationError as exc:
+                    # Pre-gen: $0.05 only. Post-gen: video cost + $0.05
+                    duration_charged = 0 if exc.pre_generation else request.duration
                     self._record_cost(
-                        session, "video", request.duration, request.resolution,
+                        session, "video", duration_charged, request.resolution,
                         "failed", self.pricing.violation_fee,
                     )
                     raise
@@ -738,7 +741,7 @@ class SessionManager:
     def _run_multi(self, session: SessionState, request: MultiRequest, start_index: int = 1) -> None:
         masked_key = f"{request.api_key[:4]}...{request.api_key[-4:]}" if request.api_key else "None"
         session.log(f"Starting session with host={request.api_host}, key={masked_key}")
-        client = Client(api_key=request.api_key, api_host=request.api_host)
+        client = create_client(api_key=request.api_key, api_host=request.api_host)
         
         # Only init costs if this is a fresh start
         if start_index == 1:
@@ -830,10 +833,12 @@ class SessionManager:
                             )
                             break
                         except ModerationError as exc:
+                            # Pre-gen: $0.05 only. Post-gen: video cost + $0.05
+                            duration_charged = 0 if exc.pre_generation else 1
                             self._record_cost(
                                 session,
                                 "preflight",
-                                1,
+                                duration_charged,
                                 "480p",
                                 "failed",
                                 self.pricing.violation_fee,
@@ -885,10 +890,12 @@ class SessionManager:
                         )
                         break
                     except ModerationError as exc:
+                        # Pre-gen: $0.05 only. Post-gen: video cost + $0.05
+                        duration_charged = 0 if exc.pre_generation else request.duration
                         self._record_cost(
                             session,
                             "video",
-                            request.duration,
+                            duration_charged,
                             request.resolution,
                             "failed",
                             self.pricing.violation_fee,

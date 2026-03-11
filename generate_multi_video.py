@@ -16,6 +16,21 @@ from pathlib import Path
 from xai_sdk import Client
 from xai_sdk.chat import image, system, user
 
+# 16MB limit for gRPC messages (default is 4MB, which fails for large base64 images)
+GRPC_MAX_MESSAGE_LENGTH = 16 * 1024 * 1024
+
+
+def create_client(api_key: str, api_host: str = "api.x.ai") -> Client:
+    """Create an xAI SDK Client with increased gRPC message size limits."""
+    return Client(
+        api_key=api_key,
+        api_host=api_host,
+        channel_options=[
+            ("grpc.max_send_message_length", GRPC_MAX_MESSAGE_LENGTH),
+            ("grpc.max_receive_message_length", GRPC_MAX_MESSAGE_LENGTH),
+        ],
+    )
+
 
 def generate_session_id() -> str:
     """Generate a unique 6-character session ID."""
@@ -331,7 +346,7 @@ def main():
     print(f"Number of prompts: {args.num_prompts}")
     print()
 
-    client = Client(api_key=api_key, api_host=args.api_host)
+    client = create_client(api_key=api_key, api_host=args.api_host)
     accepted_preflights: list[Path] = []
     accepted_videos: list[Path] = []
     if args.start_part > 1:

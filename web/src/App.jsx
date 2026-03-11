@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_PORT = import.meta.env.VITE_API_PORT || "8989";
+const API_BASE = `http://127.0.0.1:${API_PORT}`;
 
 const defaultSystemInstructions =
   "IMPORTANT: DO NOT INCLUDE BACKGROUND AUDIO OR GENERATE VOICE OVERS DESCRIBING THE SCENE. " +
