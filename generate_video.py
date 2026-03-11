@@ -14,6 +14,21 @@ from pathlib import Path
 
 from xai_sdk import Client
 
+# 16MB limit for gRPC messages (default is 4MB, which fails for large base64 images)
+GRPC_MAX_MESSAGE_LENGTH = 16 * 1024 * 1024
+
+
+def create_client(api_key: str, api_host: str = "api.x.ai") -> Client:
+    """Create an xAI SDK Client with increased gRPC message size limits."""
+    return Client(
+        api_key=api_key,
+        api_host=api_host,
+        channel_options=[
+            ("grpc.max_send_message_length", GRPC_MAX_MESSAGE_LENGTH),
+            ("grpc.max_receive_message_length", GRPC_MAX_MESSAGE_LENGTH),
+        ],
+    )
+
 
 def load_image_as_data_url(image_path: str) -> str:
     """Load an image file and return it as a base64 data URL."""
@@ -142,7 +157,7 @@ def generate_video(
     if not api_key:
         raise ValueError("XAI_API_KEY environment variable is required")
 
-    client = Client(api_key=api_key, api_host=api_host)
+    client = create_client(api_key=api_key, api_host=api_host)
     image_url = load_image_as_data_url(image_path)
 
     print(f"Generating video from: {image_path}")

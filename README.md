@@ -41,16 +41,33 @@ cd web && npm install && cd ..
 
 Start both servers (two terminals, or use `just dev`):
 
+### Terminal 1 — API server
+
 ```bash
-# Terminal 1 — API (port 8000)
 source .venv/bin/activate
 python -m uvicorn api.main:app --reload --port 8000
-
-# Terminal 2 — Frontend (port 5173)
-cd web && npm run dev
 ```
 
-Open **http://localhost:5173**.
+To use a different port (e.g. 8001), change both the uvicorn flag **and** the frontend env variable:
+
+```bash
+# Terminal 1
+python -m uvicorn api.main:app --reload --port 8001
+```
+
+```bash
+# web/.env
+VITE_API_PORT=8001
+```
+
+### Terminal 2 — Frontend dev server
+
+```bash
+cd web
+npm run dev
+```
+
+Then open **http://localhost:5173** in your browser.
 
 ### Using just (recommended)
 
@@ -219,6 +236,15 @@ Contributions are welcome. Some areas that could use help:
 - **Async backend** — convert synchronous xAI SDK calls to async
 - **Tests** — unit tests for session state, cost calculations, playlist generation
 - **Input validation** — image size limits, prompt length checks
+
+## Changelog
+
+### v1.1.0
+- Fix gRPC message size limit for large base64-encoded images ([#1](https://github.com/psabo/grokv/issues/1))
+- Fix 720p pricing (was $0.05, now correctly $0.07) ([#2](https://github.com/psabo/grokv/issues/2))
+
+### v1.0.0
+- Initial release
 
 ## License
 

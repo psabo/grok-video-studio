@@ -9,7 +9,7 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from .core import analyze_image, extract_last_frame, unique_output_path
+from .core import analyze_image, create_client, extract_last_frame, unique_output_path
 from .pricing import PricingStore
 from .session import (
     MultiRequest,
@@ -96,9 +96,7 @@ def analyze_image_endpoint(
     temp_path = OUTPUT_DIR / f"temp_analyze_{image.filename}"
     _save_upload(image, temp_path)
     try:
-        from xai_sdk import Client
-
-        client = Client(api_key=api_key, api_host=api_host)
+        client = create_client(api_key=api_key, api_host=api_host)
         description = analyze_image(client, temp_path)
         return {"description": description}
     except Exception as exc:

@@ -86,6 +86,74 @@ dev:
     cd web && npm run dev &
     wait
 
+stop-web:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(pwd)"
+    stop_pid() {
+        pid="$1"
+        kill -INT "$pid" 2>/dev/null || true
+        sleep 0.5
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            sleep 0.5
+        fi
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+    }
+    for port in 5173 5174 5175 5176 5177; do
+        pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+                if echo "$cmd" | grep -q "$root/web"; then
+                    stop_pid "$pid"
+                fi
+            done
+        fi
+    done
+    pids="$(pgrep -f "$root/web/node_modules/.bin/vite" 2>/dev/null || true)"
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            stop_pid "$pid"
+        done
+    fi
+
+stop-api:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(pwd)"
+    stop_pid() {
+        pid="$1"
+        kill -INT "$pid" 2>/dev/null || true
+        sleep 0.5
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            sleep 0.5
+        fi
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+    }
+    pids="$(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+            if echo "$cmd" | grep -q "$root"; then
+                stop_pid "$pid"
+            fi
+        done
+    fi
+    pids="$(pgrep -f "$root/.venv/bin/python3 .*api.main:app" 2>/dev/null || true)"
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            stop_pid "$pid"
+        done
+    fi
+
+stop: stop-web stop-api
+
 # Build the frontend for production
 build:
     cd web && npm run build
@@ -108,3 +176,7 @@ verify-sessions:
 # Verify sessions and download missing files
 fix-sessions:
     {{ python }} verify_sessions.py
+
+# Show current version
+version:
+    @cat VERSION
